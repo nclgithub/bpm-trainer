@@ -58,17 +58,18 @@ function App() {
   const [showVisualFlash, setShowVisualFlash] = useState(false);
   const [showCalibrationTest, setShowCalibrationTest] = useState(false);
   const [showVisualBar, setShowVisualBar] = useLocalStorage('bpm_trainer_visual_bar', false);
+  const [playHitsound, setPlayHitsound] = useLocalStorage('bpm_trainer_hitsound_on', true);
 
   const flashTimeoutRef = useRef<number | null>(null);
   const nextNoteTimeRef = useRef<number>(0);
   const currentBeatInBarRef = useRef<number>(0);
 
   const handleAccurateTap = useCallback(() => {
-    playTick();
+    if (playHitsound) playTick();
     setShowVisualFlash(true);
     if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
     flashTimeoutRef.current = window.setTimeout(() => setShowVisualFlash(false), 150);
-  }, []);
+  }, [playHitsound]);
 
   const { mode, setMode, setBpm, timeSignature, setTimeSignature, perfectWindow, setPerfectWindow, offset, setOffset, taps, lastError, detectedBpm, tap, activeSession, startTime } = useBpmTrainer(handleAccurateTap);
 
@@ -210,6 +211,10 @@ function App() {
                   <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div><label>Visual Rhythm Bar</label></div>
                     <label className="switch"><input type="checkbox" checked={showVisualBar} onChange={(e) => setShowVisualBar(e.target.checked)} /><span className="slider round"></span></label>
+                  </div>
+                  <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div><label>Perfect Hit Sound</label></div>
+                    <label className="switch"><input type="checkbox" checked={playHitsound} onChange={(e) => setPlayHitsound(e.target.checked)} /><span className="slider round"></span></label>
                   </div>
                 </>
               )}

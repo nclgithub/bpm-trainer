@@ -1,8 +1,9 @@
 .app-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 2rem;
+  height: 100vh;
+  padding: 1.5rem;
+  box-sizing: border-box;
   background: var(--bg-color);
   transition: background-color 0.15s ease-out;
   cursor: pointer;
@@ -256,20 +257,29 @@
 }
 
 .bpm-label {
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: #94a3b8;
   letter-spacing: 0.2em;
   margin-top: -0.5rem;
 }
 
+@media (max-height: 700px) {
+  .bpm-value {
+    font-size: 4.5rem;
+  }
+  .app-container {
+    padding: 1rem;
+  }
+}
+
 .main-display {
-  flex: 1;
+  flex: 1.5;
   display: flex;
   justify-content: center;
   align-items: center;
   flex-direction: column;
-  min-height: 200px;
+  min-height: 120px;
   pointer-events: none;
 }
 
@@ -298,7 +308,7 @@
 }
 
 .error-value {
-  font-size: 4.5rem;
+  font-size: clamp(2.5rem, 10vh, 4.5rem);
   font-weight: 800;
   line-height: 1;
   text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
@@ -339,7 +349,8 @@
   border-radius: 16px;
   overflow: hidden;
   margin-top: 1rem;
-  max-height: 35vh;
+  min-height: 120px;
+  max-height: 30vh;
   cursor: default;
   z-index: 10;
 }
