@@ -123,8 +123,9 @@ function App() {
     initAudio();
     if (!showSettings) {
       if (mode === 'absolute' && !activeSession && audioCtx) {
-        nextNoteTimeRef.current = audioCtx.currentTime + (60.0 / (parseInt(bpmInput, 10) || 120));
-        currentBeatInBarRef.current = 0; // Start at 0 so it aligns with % signature
+        // Schedule next beat relative to now, adding offset for audio sync.
+        nextNoteTimeRef.current = audioCtx.currentTime + (60.0 / (parseInt(bpmInput, 10) || 120)) + (offset / 1000.0);
+        currentBeatInBarRef.current = 1; // First tap is beat 0, next scheduling is beat 1
       }
       tap();
     }

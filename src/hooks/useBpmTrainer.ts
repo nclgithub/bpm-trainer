@@ -52,7 +52,9 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
         // Absolute Grid Mode Logic
         if (mode === 'absolute') {
             if (startTimeRef.current === null) {
-                startTimeRef.current = now;
+                // Initialize startTime so that this first tap aligns with the offset-corrected grid.
+                // Subtract offset so that (now - startTime) = offset, making the first tap's error 0.
+                startTimeRef.current = now - offset;
                 setTaps([{ index: 0, time: now, expectedTime: now, error: 0 }]);
                 setLastError(0);
                 resetAutoStop(bpm);
