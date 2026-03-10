@@ -6,41 +6,7 @@ import './App.css';
 import { CalibrationTest } from './components/CalibrationTest';
 import { RhythmBar } from './components/RhythmBar';
 
-let audioCtx: AudioContext | null = null;
-function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-}
-
-function playTick() {
-  if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-  osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-  gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-  osc.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.1);
-}
-
-function playMetronomeTick(time: number, beatNumber: number, signature: number) {
-  if (!audioCtx) return;
-  const osc = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime((beatNumber % signature === 0) ? 600 : 400, time);
-  osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.1);
-  gainNode.gain.setValueAtTime(0.5, time);
-  gainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
-  osc.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  osc.start(time);
-  osc.stop(time + 0.1);
-}
+import { initAudio, getAudioContext, playTick } from './utils/audio';
 
 const SettingsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -102,12 +68,21 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const audioCtx = getAudioContext();
     if (!activeSession || !audioCtx || mode !== 'absolute') return;
     let timerID: number;
     const scheduler = () => {
-      if (!audioCtx) return;
-      while (nextNoteTimeRef.current < audioCtx.currentTime + 0.1) {
-        if (playMetronome) playMetronomeTick(nextNoteTimeRef.current, currentBeatInBarRef.current, timeSignature);
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      // Fix "Machine Gun" bug: if the scheduler is too far behind (e.g. toggled off and on), 
+      // skip ahead to the next valid beat instead of playing a burst of missed sounds.
+      if (nextNoteTimeRef.current < ctx.currentTime - 0.1) {
+        nextNoteTimeRef.current = ctx.currentTime;
+      }
+
+      while (nextNoteTimeRef.current < ctx.currentTime + 0.1) {
+        if (playMetronome) playTick('metronome', nextNoteTimeRef.current, currentBeatInBarRef.current, timeSignature);
         nextNoteTimeRef.current += 60.0 / (parseInt(bpmInput, 10) || 120);
         currentBeatInBarRef.current += 1;
       }
@@ -122,12 +97,13 @@ function App() {
     if (target.closest('.settings-overlay') || target.closest('.settings-btn')) return;
     initAudio();
     if (!showSettings) {
+      const audioCtx = getAudioContext();
       if (mode === 'absolute' && !activeSession && audioCtx) {
         // Schedule next beat relative to now, adding offset for audio sync.
         nextNoteTimeRef.current = audioCtx.currentTime + (60.0 / (parseInt(bpmInput, 10) || 120)) + (offset / 1000.0);
         currentBeatInBarRef.current = 1; // First tap is beat 0, next scheduling is beat 1
       }
-      tap();
+      tap(e.timeStamp);
     }
   };
 

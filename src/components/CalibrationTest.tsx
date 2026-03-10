@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { initAudio, playTick } from '../utils/audio';
 import './CalibrationTest.css';
 
 interface Props {
@@ -13,7 +14,6 @@ export function CalibrationTest({ onApply, onCancel }: Props) {
     const [bpmInput, setBpmInput] = useState('120');
     const [notes, setNotes] = useState<{ id: number, perfTime: number, isCountdown: boolean }[]>([]);
 
-    const audioCtxRef = useRef<AudioContext | null>(null);
     const expectedTimesRef = useRef<number[]>([]);
     const testEndTimerRef = useRef<number | null>(null);
     const targetRingRef = useRef<HTMLDivElement>(null);
@@ -23,44 +23,21 @@ export function CalibrationTest({ onApply, onCancel }: Props) {
     const stopTest = () => {
         if (testEndTimerRef.current) window.clearTimeout(testEndTimerRef.current);
         testEndTimerRef.current = null;
-        if (audioCtxRef.current) {
-            audioCtxRef.current.close().catch(e => console.error(e));
-            audioCtxRef.current = null;
-        }
     };
 
     useEffect(() => {
         return () => stopTest();
     }, []);
 
-    const playBeep = (ctx: AudioContext, time: number, isCountdown: boolean) => {
-        const osc = ctx.createOscillator();
-        const gainNode = ctx.createGain();
-
-        osc.type = isCountdown ? 'square' : 'triangle';
-        osc.frequency.setValueAtTime(isCountdown ? 800 : 400, time);
-        osc.frequency.exponentialRampToValueAtTime(0.01, time + 0.1);
-
-        gainNode.gain.setValueAtTime(isCountdown ? 0.2 : 0.6, time);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
-
-        osc.connect(gainNode);
-        gainNode.connect(ctx.destination);
-
-        osc.start(time);
-        osc.stop(time + 0.1);
-    };
+    // Removed local playBeep in favor of shared playTick
 
     const startTest = () => {
         let parsedBpm = parseInt(bpmInput, 10);
         if (isNaN(parsedBpm) || parsedBpm <= 0) parsedBpm = 120;
 
-        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        if (audioCtxRef.current.state === 'suspended') {
-            audioCtxRef.current.resume();
-        }
+        const ctx = initAudio();
+        if (!ctx) return;
 
-        const ctx = audioCtxRef.current;
         const baseAudioTime = ctx.currentTime + 1.0; // Start in 1000ms
         const basePerfTime = performance.now() + 1000;
         const interval = 60.0 / parsedBpm;
@@ -71,7 +48,7 @@ export function CalibrationTest({ onApply, onCancel }: Props) {
         for (let i = 0; i < 12; i++) {
             const isCountdown = i < 4;
             const timeOffset = i * interval;
-            playBeep(ctx, baseAudioTime + timeOffset, isCountdown);
+            playTick(isCountdown ? 'countdown' : 'metronome', baseAudioTime + timeOffset, i, 4);
 
             const notePerfTime = basePerfTime + timeOffset * 1000;
             generatedNotes.push({
@@ -166,7 +143,7 @@ export function CalibrationTest({ onApply, onCancel }: Props) {
     const handlePointerDown = (e: React.PointerEvent) => {
         e.stopPropagation();
         if (status === 'running') {
-            const time = performance.now();
+            const time = e.timeStamp;
             setTaps(prev => {
                 // If we want to only keep taps after countdown we could check time
                 return [...prev, time];

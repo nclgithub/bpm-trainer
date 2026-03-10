@@ -45,8 +45,8 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
         }, interval * 3);
     }, [resetSession]);
 
-    const tap = useCallback(() => {
-        const now = performance.now();
+    const tap = useCallback((eventTime?: number) => {
+        const now = eventTime ?? performance.now();
         setActiveSession(true);
 
         // Absolute Grid Mode Logic
@@ -69,7 +69,7 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
             const rawError = now - expectedTime;
             const error = closestBeat === 0 ? 0 : rawError - offset;
 
-            setTaps(prev => [...prev, { index: closestBeat, time: now, expectedTime, error }]);
+            setTaps(prev => [...prev.slice(-49), { index: closestBeat, time: now, expectedTime, error }]);
             setLastError(error);
             if (Math.abs(error) <= perfectWindow) {
                 if (onAccurateTap) onAccurateTap();
@@ -117,7 +117,7 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
         lastError,
         detectedBpm,
         activeSession,
-        tap,
+        tap: (eventTime?: number) => tap(eventTime),
         resetSession,
         startTime: startTimeRef.current
     };
