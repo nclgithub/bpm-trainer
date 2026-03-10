@@ -1,24 +1,26 @@
 .calibration-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background-color: rgba(15, 23, 42, 0.9);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 10000;
   color: white;
+  padding: 1.5rem;
+  backdrop-filter: blur(8px);
 }
 
 .calibration-modal {
-  width: 90%;
-  max-width: 400px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 100%;
   background-color: #1e293b;
-  border-radius: 12px;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
 }
 
 .calibration-header {
@@ -45,6 +47,8 @@
 
 .calibration-body {
   padding: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .setup-screen {
