@@ -5,6 +5,7 @@ import type { TapRecord } from './hooks/useBpmTrainer';
 import './App.css';
 import { CalibrationTest } from './components/CalibrationTest';
 import { RhythmBar } from './components/RhythmBar';
+import { GuitarMode } from './components/GuitarMode';
 
 import { initAudio, getAudioContext, playTick } from './utils/audio';
 
@@ -142,8 +143,13 @@ function App() {
                 <div className="mode-toggle">
                   <button className={mode === 'absolute' ? 'active' : ''} onClick={() => setMode('absolute')}>Master</button>
                   <button className={mode === 'interval' ? 'active' : ''} onClick={() => setMode('interval')}>Tap-to-BPM</button>
+                  <button className={mode === 'guitar' ? 'active' : ''} onClick={() => setMode('guitar')}>Guitar</button>
                 </div>
-                <div className="form-hint">{mode === 'absolute' ? 'Practice keeping tempo with a fixed target BPM.' : 'Detect the BPM by tapping along.'}</div>
+                <div className="form-hint">
+                  {mode === 'absolute' ? 'Practice keeping tempo with a fixed target BPM.' : 
+                   mode === 'interval' ? 'Detect the BPM by tapping along.' : 
+                   'Play guitar notes and see what you played.'}
+                </div>
               </div>
 
               {mode === 'absolute' && (
@@ -201,61 +207,69 @@ function App() {
       )}
 
       <div className="header">
-        <h1>{mode === 'absolute' ? 'Rhythm Master' : 'BPM Detector'}</h1>
-        <div className="bpm-display">
-          <span className="bpm-value">{displayBpm}</span>
-          <span className="bpm-label">{mode === 'absolute' ? 'TARGET BPM' : 'DETECTED BPM'}</span>
-        </div>
-      </div>
-
-      <div className="main-display">
-        {activeSession ? (
-          mode === 'absolute' ? (
-            lastError !== null && (
-              <div className="recent-error">
-                <div className="error-label">Current Delay</div>
-                <div className={`error-value ${getErrorColorClass(lastError)}`}>{lastError > 0 ? '+' : ''}{lastError.toFixed(1)} ms</div>
-                <div className={`feedback-text ${getErrorColorClass(lastError)}`}>{getGradeText(lastError)}</div>
-              </div>
-            )
-          ) : (
-            <div className="recent-error">
-              <div className="error-label">Interval</div>
-              <div className="error-value" style={{ color: '#60a5fa' }}>{taps[taps.length - 1]?.error.toFixed(0)} ms</div>
-              <div className="feedback-text">Keep tapping...</div>
-            </div>
-          )
-        ) : (
-          <div className="recent-error empty">
-            <div className="instruction">TAP TO START</div>
-            <div className="sub-instruction">{mode === 'absolute' ? 'Match the target rhythm' : 'Find your rhythm'}</div>
+        <h1>{mode === 'absolute' ? 'Rhythm Master' : mode === 'interval' ? 'BPM Detector' : 'Guitar Trainer'}</h1>
+        {mode !== 'guitar' && (
+          <div className="bpm-display">
+            <span className="bpm-value">{displayBpm}</span>
+            <span className="bpm-label">{mode === 'absolute' ? 'TARGET BPM' : 'DETECTED BPM'}</span>
           </div>
         )}
       </div>
 
-      {mode === 'absolute' && showVisualBar && (
-        <RhythmBar
-          bpm={parseInt(bpmInput, 10) || 120}
-          startTime={activeSession ? startTime : null}
-          offset={offset}
-          signature={timeSignature}
-        />
-      )}
+      {mode === 'guitar' ? (
+        <GuitarMode />
+      ) : (
+        <>
+          <div className="main-display">
+            {activeSession ? (
+              mode === 'absolute' ? (
+                lastError !== null && (
+                  <div className="recent-error">
+                    <div className="error-label">Current Delay</div>
+                    <div className={`error-value ${getErrorColorClass(lastError)}`}>{lastError > 0 ? '+' : ''}{lastError.toFixed(1)} ms</div>
+                    <div className={`feedback-text ${getErrorColorClass(lastError)}`}>{getGradeText(lastError)}</div>
+                  </div>
+                )
+              ) : (
+                <div className="recent-error">
+                  <div className="error-label">Interval</div>
+                  <div className="error-value" style={{ color: '#60a5fa' }}>{taps[taps.length - 1]?.error.toFixed(0)} ms</div>
+                  <div className="feedback-text">Keep tapping...</div>
+                </div>
+              )
+            ) : (
+              <div className="recent-error empty">
+                <div className="instruction">TAP TO START</div>
+                <div className="sub-instruction">{mode === 'absolute' ? 'Match the target rhythm' : 'Find your rhythm'}</div>
+              </div>
+            )}
+          </div>
 
-      <div className="results-section" onPointerDown={e => e.stopPropagation()}>
-        <div className="results-header"><span>History</span></div>
-        <div className="results-list">
-          {taps.slice().reverse().map((tapRecord: TapRecord, idx: number) => (
-            <div key={idx} className="result-item">
-              <span className="result-beat">{mode === 'absolute' ? `Beat ${tapRecord.index}` : `Tap ${taps.length - idx}`}</span>
-              <span className={`result-error ${mode === 'absolute' ? getErrorColorClass(tapRecord.error) : ''}`}>
-                {mode === 'absolute' ? `${getGradeText(tapRecord.error)} (${tapRecord.error > 0 ? '+' : ''}${tapRecord.error.toFixed(1)} ms)` : `${tapRecord.error.toFixed(0)} ms`}
-              </span>
+          {mode === 'absolute' && showVisualBar && (
+            <RhythmBar
+              bpm={parseInt(bpmInput, 10) || 120}
+              startTime={activeSession ? startTime : null}
+              offset={offset}
+              signature={timeSignature}
+            />
+          )}
+
+          <div className="results-section" onPointerDown={e => e.stopPropagation()}>
+            <div className="results-header"><span>History</span></div>
+            <div className="results-list">
+              {taps.slice().reverse().map((tapRecord: TapRecord, idx: number) => (
+                <div key={idx} className="result-item">
+                  <span className="result-beat">{mode === 'absolute' ? `Beat ${tapRecord.index}` : `Tap ${taps.length - idx}`}</span>
+                  <span className={`result-error ${mode === 'absolute' ? getErrorColorClass(tapRecord.error) : ''}`}>
+                    {mode === 'absolute' ? `${getGradeText(tapRecord.error)} (${tapRecord.error > 0 ? '+' : ''}${tapRecord.error.toFixed(1)} ms)` : `${tapRecord.error.toFixed(0)} ms`}
+                  </span>
+                </div>
+              ))}
+              {taps.length === 0 && <div className="empty-msg">No taps yet...</div>}
             </div>
-          ))}
-          {taps.length === 0 && <div className="empty-msg">No taps yet...</div>}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
 
       {showCalibrationTest && (
         <CalibrationTest

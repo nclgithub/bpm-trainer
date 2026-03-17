@@ -8,7 +8,7 @@ export interface TapRecord {
     error: number;
 }
 
-export type TrainerMode = 'absolute' | 'interval';
+export type TrainerMode = 'absolute' | 'interval' | 'guitar';
 
 export function useBpmTrainer(onAccurateTap?: () => void) {
     const [mode, setMode] = useState<TrainerMode>('absolute');
