@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useGuitarTrainer } from '../hooks/useGuitarTrainer';
 import { getNoteString, getDeviationIndicator } from '../utils/pitchDetection';
 import './GuitarMode.css';
@@ -29,6 +29,8 @@ export function GuitarMode(): React.ReactElement {
     resetSession,
   } = useGuitarTrainer();
 
+  const [metronomeWidth, setMetronomeWidth] = useState(0);
+
   const inTuneCount = useMemo(() => {
     return notes.filter((n) => n.inTune).length;
   }, [notes]);
@@ -38,15 +40,29 @@ export function GuitarMode(): React.ReactElement {
     return Math.round((inTuneCount / notes.length) * 100);
   }, [notes, inTuneCount]);
 
+  const beatMs = useMemo(() => {
+    return (60 / bpm) * 1000;
+  }, [bpm]);
+
+  // Update metronome width
+  useEffect(() => {
+    if (!activeSession) {
+      setMetronomeWidth(0);
+      return;
+    }
+
+    const updateMetronome = () => {
+      setMetronomeWidth(((Date.now() % beatMs) / beatMs) * 100);
+    };
+
+    updateMetronome();
+    const interval = setInterval(updateMetronome, 30);
+    return () => clearInterval(interval);
+  }, [activeSession, beatMs]);
+
   const noteString = getNoteString(currentNote);
   const deviation = currentNote ? getDeviationIndicator(currentNote.cents) : '';
   const cents = currentNote ? Math.round(currentNote.cents) : 0;
-
-  const beatMs = (60 / bpm) * 1000;
-  const metronomeWidth = useMemo(() => {
-    if (!activeSession) return 0;
-    return ((Date.now() % beatMs) / beatMs) * 100;
-  }, [activeSession, beatMs]);
 
   return (
     <div className="guitar-mode">
@@ -88,7 +104,7 @@ export function GuitarMode(): React.ReactElement {
           <>
             <div className="metronome-bar">
               <div className={`metronome-beat ${Math.abs(metronomeWidth - 50) < 5 ? 'pulse' : ''}`}></div>
-              <div className="metronome-track" style={{ '--progress': `${metronomeWidth}%` } as React.CSSProperties}></div>
+              <div className="metronome-track" style={{ width: `${metronomeWidth}%` }}></div>
             </div>
 
             <div className="note-display">
