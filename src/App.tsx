@@ -148,7 +148,7 @@ function App() {
                 <div className="form-hint">
                   {mode === 'absolute' ? 'Practice keeping tempo with a fixed target BPM.' : 
                    mode === 'interval' ? 'Detect the BPM by tapping along.' : 
-                   'Play guitar notes and see what you played.'}
+                   'Play guitar to the beat — get graded PERFECT/GREAT/GOOD/MISS with ms accuracy.'}
                 </div>
               </div>
 
