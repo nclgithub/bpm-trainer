@@ -6,10 +6,15 @@ A professional-grade rhythm training and BPM detection tool built with React and
 
 ## ✨ Features
 
-- **🎯 Two Training Modes**:
+- **🎯 Three Training Modes**:
   - **Rhythm Master**: Practice keeping up with a fixed target BPM. Get real-time feedback on every tap.
   - **BPM Detector**: Tap along to any song or rhythm to accurately detect its beats per minute.
-- **🔊 High-Precision Metronome**: Built-in audio metronome with customizable time signatures (2/4 to 7/4).
+  - **Guitar Trainer**: Pitch-detection based training — play your guitar in time with the metronome.
+- **🎧 Audio-Only Training**: Optimized for training without looking at the screen (perfect for practicing while working):
+  - **Performance Audio Feedback**: Distinct sonic signatures for **Perfect**, **Early** (too fast), and **Late** (too slow) hits.
+  - **Gap Click Training**: Silence the metronome periodically (e.g., 2 bars ON, 2 bars OFF) to test and develop your internal sense of rhythm.
+  - **Voice Summaries**: Announces session statistics (average error in ms) via voice synthesis when you stop tapping.
+- **🔊 High-Precision Metronome**: Built-in audio metronome with customizable time signatures (2/4 to 7/4) and intelligent mobile browser resumption (auto-resume after phone lock/unlock).
 - **📊 Real-Time Grading**: Music-game style feedback system:
   - **PERFECT**: Sub-30ms error (customizable)
   - **GREAT**: Within 1.5x of perfect window

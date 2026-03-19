@@ -59,7 +59,7 @@ function MetronomeBar({ bpm, active }: { bpm: number; active: boolean }) {
     };
   }, [active, bpm]);
 
-  // Swing –90° → +90° and back
+  // Swing –40° → +40°
   const angle = Math.sin(progress * Math.PI) * 80 - 40;
 
   return (
@@ -75,9 +75,8 @@ function MetronomeBar({ bpm, active }: { bpm: number; active: boolean }) {
 // ─── Component ────────────────────────────────────────────────────────────────
 export function GuitarMode(): React.ReactElement {
   const {
-    bpm, setBpm,
-    timeSignature, setTimeSignature,
-    perfectWindow, setPerfectWindow,
+    bpm,
+    perfectWindow,
     micActive,
     activeSession,
     permissionDenied,
@@ -122,44 +121,6 @@ export function GuitarMode(): React.ReactElement {
 
   return (
     <div className={`gm-root ${flash ? 'gm-flash' : ''}`}>
-
-      {/* ── Settings bar ── */}
-      <div className="gm-settings-bar" onPointerDown={e => e.stopPropagation()}>
-        <div className="gm-setting">
-          <span className="gm-setting-label">BPM</span>
-          <input
-            className="gm-setting-input"
-            type="number" min="30" max="300"
-            value={bpm}
-            onChange={e => setBpm(parseInt(e.target.value, 10) || 120)}
-            disabled={micActive}
-          />
-        </div>
-
-        <div className="gm-setting">
-          <span className="gm-setting-label">Time Sig</span>
-          <div className="gm-seg">
-            {[2, 3, 4, 5, 6].map(n => (
-              <button
-                key={n}
-                className={`gm-seg-btn ${timeSignature === n ? 'active' : ''}`}
-                onClick={() => setTimeSignature(n)}
-                disabled={micActive}
-              >{n}/4</button>
-            ))}
-          </div>
-        </div>
-
-        <div className="gm-setting">
-          <span className="gm-setting-label">Window&nbsp;(ms)</span>
-          <input
-            className="gm-setting-input"
-            type="number" min="10" max="200"
-            value={perfectWindow}
-            onChange={e => setPerfectWindow(parseInt(e.target.value, 10) || 50)}
-          />
-        </div>
-      </div>
 
       {/* ── Permission error ── */}
       {permissionDenied && (

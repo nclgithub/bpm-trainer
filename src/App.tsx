@@ -26,19 +26,50 @@ function App() {
   const [showCalibrationTest, setShowCalibrationTest] = useState(false);
   const [showVisualBar, setShowVisualBar] = useLocalStorage('bpm_trainer_visual_bar', false);
   const [playHitsound, setPlayHitsound] = useLocalStorage('bpm_trainer_hitsound_on', true);
+  const [playPerformanceSound, setPlayPerformanceSound] = useLocalStorage('bpm_trainer_performance_sound_on', true);
 
   const flashTimeoutRef = useRef<number | null>(null);
   const nextNoteTimeRef = useRef<number>(0);
   const currentBeatInBarRef = useRef<number>(0);
 
-  const handleAccurateTap = useCallback(() => {
-    if (playHitsound) playTick();
+  const feedbackRef = useRef<(error?: number) => void>(() => {});
+
+  const {
+    mode, setMode,
+    bpm, setBpm,
+    timeSignature, setTimeSignature,
+    perfectWindow, setPerfectWindow,
+    offset, setOffset,
+    taps, lastError, detectedBpm,
+    activeSession,
+    gapClickMode, setGapClickMode,
+    gapClickBarsOn, setGapClickBarsOn,
+    gapClickBarsOff, setGapClickBarsOff,
+    tap, startTime
+  } = useBpmTrainer((err: number) => feedbackRef.current(err));
+
+  const handleTapFeedback = useCallback((error?: number) => {
+    if (error !== undefined && playPerformanceSound) {
+      const absError = Math.abs(error);
+      if (absError <= perfectWindow) {
+        playTick('perfect_hit');
+      } else if (error < 0) {
+        playTick('early');
+      } else {
+        playTick('late');
+      }
+    } else if (playHitsound) {
+      playTick();
+    }
+    
     setShowVisualFlash(true);
     if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
     flashTimeoutRef.current = window.setTimeout(() => setShowVisualFlash(false), 150);
-  }, [playHitsound]);
+  }, [playHitsound, playPerformanceSound, perfectWindow]);
 
-  const { mode, setMode, setBpm, timeSignature, setTimeSignature, perfectWindow, setPerfectWindow, offset, setOffset, taps, lastError, detectedBpm, tap, activeSession, startTime } = useBpmTrainer(handleAccurateTap);
+  useEffect(() => {
+    feedbackRef.current = handleTapFeedback;
+  }, [handleTapFeedback]);
 
   useEffect(() => {
     const parsed = parseInt(bpmInput, 10);
@@ -64,8 +95,13 @@ function App() {
 
   useEffect(() => {
     const handleFirstInteraction = () => { initAudio(); window.removeEventListener('pointerdown', handleFirstInteraction); };
+    const handleVisibilityChange = () => { if (document.visibilityState === 'visible') initAudio(); };
     window.addEventListener('pointerdown', handleFirstInteraction);
-    return () => window.removeEventListener('pointerdown', handleFirstInteraction);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -86,7 +122,20 @@ function App() {
       }
 
       while (nextNoteTimeRef.current < ctx.currentTime + 0.1) {
-        if (playMetronome) playTick('metronome', nextNoteTimeRef.current, currentBeatInBarRef.current, timeSignature);
+        let isAudible = true;
+        if (gapClickMode) {
+          const totalBeats = currentBeatInBarRef.current;
+          const barIndex = Math.floor(totalBeats / timeSignature);
+          const cycle = gapClickBarsOn + gapClickBarsOff;
+          const barInCycle = barIndex % cycle;
+          if (barInCycle >= gapClickBarsOn) {
+            isAudible = false;
+          }
+        }
+
+        if (playMetronome && isAudible) {
+          playTick('metronome', nextNoteTimeRef.current, currentBeatInBarRef.current, timeSignature);
+        }
         nextNoteTimeRef.current += 60.0 / (parseInt(bpmInput, 10) || 120);
         currentBeatInBarRef.current += 1;
       }
@@ -157,7 +206,7 @@ function App() {
                 </div>
               </div>
 
-              {mode === 'absolute' && (
+              {(mode === 'absolute' || mode === 'guitar') && (
                 <>
                   <div className="form-group">
                     <label>Target BPM</label>
@@ -180,30 +229,59 @@ function App() {
                   <div className="form-group">
                     <label>Timing Strictness (ms)</label>
                     <div className="input-with-unit"><input type="number" value={perfectWindowInput} onChange={(e) => setPerfectWindowInput(e.target.value)} min="1" max="200" /><span>ms</span></div>
-                    <div className="form-hint">How close your tap must be to the beat for a "PERFECT" score.</div>
+                    <div className="form-hint">How close your strum must be to the beat for a "PERFECT" score.</div>
                   </div>
-                  <div className="form-group">
-                    <label>Audio Sync (ms)</label>
-                    <div className="input-with-unit"><input type="number" value={offsetInput} onChange={(e) => setOffsetInput(e.target.value)} /><span>ms</span></div>
-                    <div className="calibrate-actions" style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                      <button className="calibrate-btn" onClick={() => { setShowSettings(false); setShowCalibrationTest(true); }} style={{ width: '100%' }}>
-                        Start Calibration Test
-                      </button>
-                    </div>
-                    <div className="form-hint">Fixes delays from Bluetooth headphones or your screen.</div>
-                  </div>
-                  <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><label>Metronome Sound</label></div>
-                    <label className="switch"><input type="checkbox" checked={playMetronome} onChange={(e) => { setPlayMetronome(e.target.checked); initAudio(); }} /><span className="slider round"></span></label>
-                  </div>
-                  <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><label>Visual Rhythm Bar</label></div>
-                    <label className="switch"><input type="checkbox" checked={showVisualBar} onChange={(e) => setShowVisualBar(e.target.checked)} /><span className="slider round"></span></label>
-                  </div>
-                  <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div><label>Perfect Hit Sound</label></div>
-                    <label className="switch"><input type="checkbox" checked={playHitsound} onChange={(e) => { setPlayHitsound(e.target.checked); initAudio(); }} /><span className="slider round"></span></label>
-                  </div>
+
+                  {mode === 'absolute' && (
+                    <>
+                      <div className="form-group">
+                        <label>Audio Sync (ms)</label>
+                        <div className="input-with-unit"><input type="number" value={offsetInput} onChange={(e) => setOffsetInput(e.target.value)} /><span>ms</span></div>
+                        <div className="calibrate-actions" style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                          <button className="calibrate-btn" onClick={() => { setShowSettings(false); setShowCalibrationTest(true); }} style={{ width: '100%' }}>
+                            Start Calibration Test
+                          </button>
+                        </div>
+                        <div className="form-hint">Fixes delays from Bluetooth headphones or your screen.</div>
+                      </div>
+                      <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div><label>Metronome Sound</label></div>
+                        <label className="switch"><input type="checkbox" checked={playMetronome} onChange={(e) => { setPlayMetronome(e.target.checked); initAudio(); }} /><span className="slider round"></span></label>
+                      </div>
+                      <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div><label>Visual Rhythm Bar</label></div>
+                        <label className="switch"><input type="checkbox" checked={showVisualBar} onChange={(e) => setShowVisualBar(e.target.checked)} /><span className="slider round"></span></label>
+                      </div>
+                      <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div><label>Performance Audio Feedback</label></div>
+                        <label className="switch"><input type="checkbox" checked={playPerformanceSound} onChange={(e) => { setPlayPerformanceSound(e.target.checked); initAudio(); }} /><span className="slider round"></span></label>
+                      </div>
+                      <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div><label>Perfect Hit Sound</label></div>
+                        <label className="switch"><input type="checkbox" checked={playHitsound} onChange={(e) => { setPlayHitsound(e.target.checked); initAudio(); }} /><span className="slider round"></span></label>
+                      </div>
+
+                      <div className="form-group" style={{ marginTop: '16px', borderTop: '1px solid #334155', paddingTop: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <label>Gap Click Training</label>
+                          <label className="switch"><input type="checkbox" checked={gapClickMode} onChange={(e) => setGapClickMode(e.target.checked)} /><span className="slider round"></span></label>
+                        </div>
+                        {gapClickMode && (
+                          <div className="gap-settings" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Bars ON</label>
+                              <input type="number" value={gapClickBarsOn} onChange={(e) => setGapClickBarsOn(parseInt(e.target.value, 10) || 1)} min="1" max="16" style={{ width: '100%' }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Bars OFF</label>
+                              <input type="number" value={gapClickBarsOff} onChange={(e) => setGapClickBarsOff(parseInt(e.target.value, 10) || 1)} min="1" max="16" style={{ width: '100%' }} />
+                            </div>
+                          </div>
+                        )}
+                        <div className="form-hint">Silence the metronome periodically to test your timing.</div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

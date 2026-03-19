@@ -10,7 +10,7 @@ export interface TapRecord {
 
 export type TrainerMode = 'absolute' | 'interval' | 'guitar';
 
-export function useBpmTrainer(onAccurateTap?: () => void) {
+export function useBpmTrainer(onAccurateTap?: (error: number) => void) {
     const [mode, setMode] = useState<TrainerMode>('absolute');
     const [bpm, setBpm] = useLocalStorage('bpm_trainer_bpm', 120);
     const [timeSignature, setTimeSignature] = useLocalStorage('bpm_trainer_signature', 4);
@@ -20,12 +20,20 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
     const [lastError, setLastError] = useState<number | null>(null);
     const [detectedBpm, setDetectedBpm] = useState<number | null>(null);
     const [activeSession, setActiveSession] = useState(false);
+    const [gapClickMode, setGapClickMode] = useLocalStorage('bpm_trainer_gap_mode', false);
+    const [gapClickBarsOn, setGapClickBarsOn] = useLocalStorage('bpm_trainer_gap_on', 2);
+    const [gapClickBarsOff, setGapClickBarsOff] = useLocalStorage('bpm_trainer_gap_off', 2);
 
     const startTimeRef = useRef<number | null>(null);
     const lastTapTimeRef = useRef<number | null>(null);
     const timeoutRef = useRef<number | null>(null);
 
     const resetSession = useCallback(() => {
+        if (activeSession && taps.length > 0) {
+            const avgError = taps.reduce((sum, t) => sum + Math.abs(t.error), 0) / taps.length;
+            const msg = new SpeechSynthesisUtterance(`Session ended. Average error ${Math.round(avgError)} milliseconds.`);
+            window.speechSynthesis.speak(msg);
+        }
         startTimeRef.current = null;
         lastTapTimeRef.current = null;
         setActiveSession(false);
@@ -33,7 +41,7 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
             window.clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
         }
-    }, []);
+    }, [activeSession, taps]);
 
     const resetAutoStop = useCallback((currentBpm: number) => {
         if (timeoutRef.current !== null) {
@@ -58,7 +66,7 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
                 setTaps([{ index: 0, time: now, expectedTime: now, error: 0 }]);
                 setLastError(0);
                 resetAutoStop(bpm);
-                if (onAccurateTap) onAccurateTap();
+                if (onAccurateTap) onAccurateTap(0);
                 return;
             }
 
@@ -71,8 +79,8 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
 
             setTaps(prev => [...prev.slice(-49), { index: closestBeat, time: now, expectedTime, error }]);
             setLastError(error);
-            if (Math.abs(error) <= perfectWindow) {
-                if (onAccurateTap) onAccurateTap();
+            if (Math.abs(error) <= perfectWindow || onAccurateTap) {
+                if (onAccurateTap) onAccurateTap(error);
             }
             resetAutoStop(bpm);
         }
@@ -117,6 +125,12 @@ export function useBpmTrainer(onAccurateTap?: () => void) {
         lastError,
         detectedBpm,
         activeSession,
+        gapClickMode,
+        setGapClickMode,
+        gapClickBarsOn,
+        setGapClickBarsOn,
+        gapClickBarsOff,
+        setGapClickBarsOff,
         tap: (eventTime?: number) => tap(eventTime),
         resetSession,
         startTime: startTimeRef.current

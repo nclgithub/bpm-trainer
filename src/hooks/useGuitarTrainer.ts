@@ -13,14 +13,17 @@ export interface GuitarBeatRecord {
 }
 
 /** Minimum RMS amplitude to count as a "hit" */
-const HIT_RMS_THRESHOLD = 0.015;
+const HIT_RMS_THRESHOLD = 0.012;
 /** Minimum ms between consecutive hits to debounce rapid strumming */
-const HIT_DEBOUNCE_MS = 80;
+const HIT_DEBOUNCE_MS = 120;
+/** Minimum ms that the signal must stay above threshold before counting as note-on */
+const NOTE_ON_MIN_MS = 15;
 
 export function useGuitarTrainer() {
-    const [bpm, setBpm] = useLocalStorage('bpm_guitar_bpm', 120);
-    const [timeSignature, setTimeSignature] = useLocalStorage('bpm_guitar_sig', 4);
-    const [perfectWindow, setPerfectWindow] = useLocalStorage('bpm_guitar_window', 50);
+    // Share the same localStorage keys as the main trainer so settings are unified
+    const [bpm, setBpm] = useLocalStorage('bpm_trainer_bpm', 120);
+    const [timeSignature, setTimeSignature] = useLocalStorage('bpm_trainer_signature', 4);
+    const [perfectWindow, setPerfectWindow] = useLocalStorage('bpm_trainer_window', 30);
 
     const [micActive, setMicActive] = useState(false);
     const [permissionDenied, setPermissionDenied] = useState(false);
@@ -35,15 +38,17 @@ export function useGuitarTrainer() {
     const analyserRef = useRef<AnalyserNode | null>(null);
     const animationFrameRef = useRef<number | null>(null);
 
-    // Session timing refs — use AudioContext time for precision
-    const sessionStartAcTimeRef = useRef<number | null>(null);   // AudioContext time when session started
-    const sessionStartWallRef = useRef<number | null>(null);     // performance.now() when session started
+    // Session timing refs
+    const sessionStartWallRef = useRef<number | null>(null);
     const beatCountRef = useRef<number>(0);
 
     // Hit debounce
     const lastHitTimeRef = useRef<number | null>(null);
     // Whether we are currently in a "note-on" state (to detect onset)
     const inNoteRef = useRef<boolean>(false);
+    // When the signal first went above threshold (for min-duration gating)
+    const noteOnStartRef = useRef<number | null>(null);
+
     const bpmRef = useRef<number>(bpm);
     bpmRef.current = bpm;
 
@@ -66,9 +71,9 @@ export function useGuitarTrainer() {
         setMicActive(false);
         setActiveSession(false);
         setCurrentNote(null);
-        sessionStartAcTimeRef.current = null;
         sessionStartWallRef.current = null;
         inNoteRef.current = false;
+        noteOnStartRef.current = null;
         lastHitTimeRef.current = null;
     }, []);
 
@@ -86,55 +91,64 @@ export function useGuitarTrainer() {
         rms = Math.sqrt(rms / buffer.length);
 
         const isSound = rms > HIT_RMS_THRESHOLD;
+        const nowPerf = performance.now();
 
-        // Detect pitch always (so we can show current note)
-        const detected = detectPitch(buffer);
+        // Detect pitch (always, so we can show current note in real-time)
+        const sampleRate = audioCtx.sampleRate;
+        const detected = detectPitch(buffer, sampleRate);
         if (detected && isGuitarFrequency(detected.frequency)) {
             setCurrentNote(detected);
-        } else {
+        } else if (!isSound) {
             setCurrentNote(null);
         }
 
-        // --- Onset detection (rising edge) ---
+        // --- Onset detection (rising edge with minimum duration gating) ---
         if (isSound && !inNoteRef.current) {
-            inNoteRef.current = true;
+            // Signal just came above threshold — start the gate timer
+            if (noteOnStartRef.current === null) {
+                noteOnStartRef.current = nowPerf;
+            } else if (nowPerf - noteOnStartRef.current >= NOTE_ON_MIN_MS) {
+                // Signal has been loud for long enough — register note-on
+                inNoteRef.current = true;
+                noteOnStartRef.current = null;
 
-            // Debounce rapid strums
-            const nowPerf = performance.now();
-            if (lastHitTimeRef.current !== null && nowPerf - lastHitTimeRef.current < HIT_DEBOUNCE_MS) {
-                animationFrameRef.current = requestAnimationFrame(processFrame);
-                return;
-            }
-            lastHitTimeRef.current = nowPerf;
+                // Debounce rapid strums
+                if (lastHitTimeRef.current !== null && nowPerf - lastHitTimeRef.current < HIT_DEBOUNCE_MS) {
+                    animationFrameRef.current = requestAnimationFrame(processFrame);
+                    return;
+                }
+                lastHitTimeRef.current = nowPerf;
 
-            // Record this hit against the beat grid
-            const sessionStartWall = sessionStartWallRef.current;
-            if (sessionStartWall !== null) {
-                const currentBpm = bpmRef.current;
-                const interval = 60000 / currentBpm;
-                const elapsed = nowPerf - sessionStartWall;
-                const closestBeat = Math.round(elapsed / interval);
-                const expectedMs = closestBeat * interval;
-                const error = elapsed - expectedMs;
-                beatCountRef.current += 1;
+                // Record this hit against the beat grid
+                const sessionStartWall = sessionStartWallRef.current;
+                if (sessionStartWall !== null) {
+                    const currentBpm = bpmRef.current;
+                    const interval = 60000 / currentBpm;
+                    const elapsed = nowPerf - sessionStartWall;
+                    const closestBeat = Math.round(elapsed / interval);
+                    const expectedMs = closestBeat * interval;
+                    const error = elapsed - expectedMs;
+                    beatCountRef.current += 1;
 
-                const noteStr = (detected && isGuitarFrequency(detected?.frequency ?? 0))
-                    ? `${detected.note}${detected.octave}`
-                    : null;
+                    const noteStr = (detected && isGuitarFrequency(detected.frequency))
+                        ? `${detected.note}${detected.octave}`
+                        : null;
 
-                const record: GuitarBeatRecord = {
-                    index: beatCountRef.current,
-                    time: elapsed,
-                    error,
-                    note: noteStr,
-                    frequency: detected?.frequency ?? null,
-                    cents: detected?.cents ?? null,
-                };
-                setLastBeat(record);
-                setBeats(prev => [...prev.slice(-49), record]);
+                    const record: GuitarBeatRecord = {
+                        index: beatCountRef.current,
+                        time: elapsed,
+                        error,
+                        note: noteStr,
+                        frequency: detected?.frequency ?? null,
+                        cents: detected?.cents ?? null,
+                    };
+                    setLastBeat(record);
+                    setBeats(prev => [...prev.slice(-49), record]);
+                }
             }
         } else if (!isSound) {
             inNoteRef.current = false;
+            noteOnStartRef.current = null;
         }
 
         animationFrameRef.current = requestAnimationFrame(processFrame);
@@ -156,17 +170,20 @@ export function useGuitarTrainer() {
             audioContextRef.current = audioContext;
 
             const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 4096;
-            analyser.smoothingTimeConstant = 0.5;
+            // Larger FFT gives better frequency resolution for low strings
+            analyser.fftSize = 8192;
+            // No smoothing — pitch detection works on raw samples;
+            // smoothing is for spectrum visualisation and hurts onset detection
+            analyser.smoothingTimeConstant = 0.0;
             const source = audioContext.createMediaStreamSource(stream);
             source.connect(analyser);
             analyserRef.current = analyser;
 
             // Record session start
-            sessionStartAcTimeRef.current = audioContext.currentTime;
             sessionStartWallRef.current = performance.now();
             beatCountRef.current = 0;
             inNoteRef.current = false;
+            noteOnStartRef.current = null;
             lastHitTimeRef.current = null;
 
             setBeats([]);
@@ -183,9 +200,9 @@ export function useGuitarTrainer() {
 
     const resetSession = useCallback(() => {
         sessionStartWallRef.current = performance.now();
-        sessionStartAcTimeRef.current = audioContextRef.current?.currentTime ?? null;
         beatCountRef.current = 0;
         inNoteRef.current = false;
+        noteOnStartRef.current = null;
         lastHitTimeRef.current = null;
         setBeats([]);
         setLastBeat(null);
