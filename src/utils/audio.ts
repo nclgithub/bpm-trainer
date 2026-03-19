@@ -9,10 +9,17 @@ export function initAudio() {
         audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     if (audioCtx.state === 'suspended') {
-        audioCtx.createBufferSource().start(); // Some browsers need a node to start
         audioCtx.resume();
     }
     return audioCtx;
+}
+
+export async function ensureAudioResumed() {
+    const ctx = initAudio();
+    if (ctx && ctx.state === 'suspended') {
+        await ctx.resume();
+    }
+    return ctx;
 }
 
 export function playTick(type: 'perfect' | 'metronome' | 'countdown' = 'perfect', time?: number, beatNumber?: number, signature?: number) {

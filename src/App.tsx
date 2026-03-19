@@ -69,14 +69,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const audioCtx = getAudioContext();
-    if (!activeSession || !audioCtx || mode !== 'absolute') return;
     let timerID: number;
     const scheduler = () => {
       const ctx = getAudioContext();
-      if (!ctx) return;
+      if (!ctx || !activeSession || mode !== 'absolute') return;
 
-      // Fix "Machine Gun" bug: if the scheduler is too far behind (e.g. toggled off and on), 
+      // Ensure context is running if possible (scheduler is usually triggered by user interaction)
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(e => console.warn('Could not resume audio in scheduler', e));
+      }
+
+      // If the scheduler is too far behind (e.g. toggled off and on, or tab was inactive),
       // skip ahead to the next valid beat instead of playing a burst of missed sounds.
       if (nextNoteTimeRef.current < ctx.currentTime - 0.1) {
         nextNoteTimeRef.current = ctx.currentTime;
@@ -89,8 +92,10 @@ function App() {
       }
       timerID = window.setTimeout(scheduler, 25);
     };
-    scheduler();
-    return () => window.clearTimeout(timerID);
+    if (activeSession && mode === 'absolute') {
+      scheduler();
+    }
+    return () => { if (timerID) window.clearTimeout(timerID); };
   }, [activeSession, bpmInput, playMetronome, mode, timeSignature]);
 
   const handleTapAreaClick = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -128,7 +133,7 @@ function App() {
 
   return (
     <div className={`app-container ${showVisualFlash ? 'accurate' : ''}`} onPointerDown={handleTapAreaClick}>
-      <button className="settings-btn" onClick={() => setShowSettings(true)} aria-label="Settings"><SettingsIcon /></button>
+      <button className="settings-btn" onClick={() => { setShowSettings(true); initAudio(); }} aria-label="Settings"><SettingsIcon /></button>
 
       {showSettings && (
         <div className="settings-overlay" onPointerDown={e => e.stopPropagation()}>
@@ -189,7 +194,7 @@ function App() {
                   </div>
                   <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div><label>Metronome Sound</label></div>
-                    <label className="switch"><input type="checkbox" checked={playMetronome} onChange={(e) => setPlayMetronome(e.target.checked)} /><span className="slider round"></span></label>
+                    <label className="switch"><input type="checkbox" checked={playMetronome} onChange={(e) => { setPlayMetronome(e.target.checked); initAudio(); }} /><span className="slider round"></span></label>
                   </div>
                   <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div><label>Visual Rhythm Bar</label></div>
@@ -197,7 +202,7 @@ function App() {
                   </div>
                   <div className="form-group" style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div><label>Perfect Hit Sound</label></div>
-                    <label className="switch"><input type="checkbox" checked={playHitsound} onChange={(e) => setPlayHitsound(e.target.checked)} /><span className="slider round"></span></label>
+                    <label className="switch"><input type="checkbox" checked={playHitsound} onChange={(e) => { setPlayHitsound(e.target.checked); initAudio(); }} /><span className="slider round"></span></label>
                   </div>
                 </>
               )}
