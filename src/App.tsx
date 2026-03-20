@@ -36,7 +36,7 @@ function App() {
 
   const {
     mode, setMode,
-    bpm, setBpm,
+    setBpm,
     timeSignature, setTimeSignature,
     perfectWindow, setPerfectWindow,
     offset, setOffset,
