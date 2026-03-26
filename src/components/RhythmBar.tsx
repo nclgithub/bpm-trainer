@@ -26,7 +26,7 @@ export function RhythmBar({ bpm, startTime, offset, signature }: Props) {
                 if (i < 0) continue;
                 const el = noteRefs.current[i % 8];
                 if (el) {
-                    const targetTime = startTime + i * interval + offset;
+                    const targetTime = startTime + i * interval - offset;
                     const timeDiff = targetTime - now;
                     const speed = 0.35; // px per ms
                     const targetX = 60; // matching CSS left

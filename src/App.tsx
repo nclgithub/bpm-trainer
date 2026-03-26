@@ -94,12 +94,14 @@ function App() {
   };
 
   useEffect(() => {
-    const handleFirstInteraction = () => { initAudio(); window.removeEventListener('pointerdown', handleFirstInteraction); };
+    const handleFirstInteraction = () => { initAudio(); window.removeEventListener('pointerdown', handleFirstInteraction); window.removeEventListener('click', handleFirstInteraction); };
     const handleVisibilityChange = () => { if (document.visibilityState === 'visible') initAudio(); };
     window.addEventListener('pointerdown', handleFirstInteraction);
+    window.addEventListener('click', handleFirstInteraction);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('click', handleFirstInteraction);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
@@ -154,8 +156,8 @@ function App() {
     if (!showSettings) {
       const audioCtx = getAudioContext();
       if (mode === 'absolute' && !activeSession && audioCtx) {
-        // Schedule next beat relative to now, adding offset for audio sync.
-        nextNoteTimeRef.current = audioCtx.currentTime + (60.0 / (parseInt(bpmInput, 10) || 120)) + (offset / 1000.0);
+        // Schedule next beat relative to now, subtracting offset so audio plays early to compensate for user lag.
+        nextNoteTimeRef.current = audioCtx.currentTime + (60.0 / (parseInt(bpmInput, 10) || 120)) - (offset / 1000.0);
         currentBeatInBarRef.current = 1; // First tap is beat 0, next scheduling is beat 1
       }
       tap(e.timeStamp);
@@ -181,7 +183,7 @@ function App() {
   const displayBpm = mode === 'absolute' ? (bpmInput || '120') : (detectedBpm ? Math.round(detectedBpm).toString() : '---');
 
   return (
-    <div className={`app-container ${showVisualFlash ? 'accurate' : ''}`} onPointerDown={handleTapAreaClick}>
+    <div className={`app-container ${showVisualFlash ? 'accurate' : ''}`} onPointerDown={handleTapAreaClick} onClick={() => initAudio()}>
       <button className="settings-btn" onClick={() => { setShowSettings(true); initAudio(); }} aria-label="Settings"><SettingsIcon /></button>
 
       {showSettings && (

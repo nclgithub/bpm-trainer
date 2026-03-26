@@ -19,10 +19,20 @@ export function CalibrationTest({ onApply, onCancel }: Props) {
     const targetRingRef = useRef<HTMLDivElement>(null);
     const noteRefs = useRef<(HTMLDivElement | null)[]>([]);
     const trackRef = useRef<HTMLDivElement>(null);
+    const oscRefs = useRef<OscillatorNode[]>([]);
 
     const stopTest = () => {
         if (testEndTimerRef.current) window.clearTimeout(testEndTimerRef.current);
         testEndTimerRef.current = null;
+        oscRefs.current.forEach(osc => {
+            try {
+                osc.stop();
+                osc.disconnect();
+            } catch (e) {
+                // Ignore if already stopped
+            }
+        });
+        oscRefs.current = [];
     };
 
     useEffect(() => {
@@ -48,7 +58,8 @@ export function CalibrationTest({ onApply, onCancel }: Props) {
         for (let i = 0; i < 12; i++) {
             const isCountdown = i < 4;
             const timeOffset = i * interval;
-            playTick(isCountdown ? 'countdown' : 'metronome', baseAudioTime + timeOffset, i, 4);
+            const osc = playTick(isCountdown ? 'countdown' : 'metronome', baseAudioTime + timeOffset, i, 4);
+            if (osc) oscRefs.current.push(osc);
 
             const notePerfTime = basePerfTime + timeOffset * 1000;
             generatedNotes.push({

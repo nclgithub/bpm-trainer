@@ -24,8 +24,8 @@ export async function ensureAudioResumed() {
     return ctx;
 }
 
-export function playTick(type: 'perfect' | 'metronome' | 'countdown' | 'early' | 'late' | 'perfect_hit' = 'perfect', time?: number, beatNumber?: number, signature?: number) {
-    if (!audioCtx) return;
+export function playTick(type: 'perfect' | 'metronome' | 'countdown' | 'early' | 'late' | 'perfect_hit' = 'perfect', time?: number, beatNumber?: number, signature?: number): OscillatorNode | undefined {
+    if (!audioCtx) return undefined;
 
     const ctx = audioCtx;
     const playTime = time ?? ctx.currentTime;
@@ -70,4 +70,5 @@ export function playTick(type: 'perfect' | 'metronome' | 'countdown' | 'early' |
 
     osc.start(playTime);
     osc.stop(playTime + 0.2);
+    return osc;
 }
