@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useGuitarTrainer } from '../hooks/useGuitarTrainer';
 import type { GuitarBeatRecord } from '../hooks/useGuitarTrainer';
+import { nearestGuitarString } from '../utils/pitchDetection';
 import './GuitarMode.css';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -37,6 +38,37 @@ function getGrade(error: number, perfectWindow: number): { label: string; cls: s
   return { label: error > 0 ? 'LATE' : 'EARLY', cls: 'error-miss' };
 }
 
+// ─── Tuner Gauge ─────────────────────────────────────────────────────────────
+function TunerGauge({ cents, active }: { cents: number; active: boolean }) {
+  // Map -50..+50 cents to -90deg..+90deg or 0%..100%
+  // We'll use a linear horizontal gauge for modern feel.
+  const clamped = Math.max(-50, Math.min(50, cents));
+  const percent = ((clamped + 50) / 100) * 100;
+  const isCorrect = Math.abs(cents) < 10;
+  const isClose = Math.abs(cents) < 25;
+
+  return (
+    <div className={`gm-tuner-wrap ${active ? 'active' : ''}`}>
+      <div className="gm-tuner-scale">
+        <div className="gm-tuner-marks">
+          {[-50, -25, 0, 25, 50].map(val => (
+            <div key={val} className={`gm-tuner-mark ${val === 0 ? 'center' : ''}`}>
+              <span>{val === 0 ? 'IN TUNE' : `${val > 0 ? '+' : ''}${val}`}</span>
+            </div>
+          ))}
+        </div>
+        <div className="gm-tuner-track">
+          <div 
+            className={`gm-tuner-needle ${isCorrect ? 'perfect' : isClose ? 'close' : 'off'}`} 
+            style={{ left: `${percent}%` }} 
+          />
+          <div className="gm-tuner-center-line" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Metronome pendulum ───────────────────────────────────────────────────────
 function MetronomeBar({ bpm, active }: { bpm: number; active: boolean }) {
   const [progress, setProgress] = useState(0);
@@ -59,8 +91,8 @@ function MetronomeBar({ bpm, active }: { bpm: number; active: boolean }) {
     };
   }, [active, bpm]);
 
-  // Swing –40° → +40°
-  const angle = Math.sin(progress * Math.PI) * 80 - 40;
+  // Swing –35° → +35°
+  const angle = Math.sin(progress * Math.PI) * 70 - 35;
 
   return (
     <div className="gm-metro-wrap">
@@ -119,6 +151,19 @@ export function GuitarMode(): React.ReactElement {
     return counts;
   }, [beats, perfectWindow]);
 
+  const nearest = useMemo(() => 
+    currentNote ? nearestGuitarString(currentNote.frequency) : null
+  , [currentNote]);
+
+  const stringLabels: Record<string, string> = {
+    'E2': '6th String (E)',
+    'A2': '5th String (A)',
+    'D3': '4th String (D)',
+    'G3': '3rd String (G)',
+    'B3': '2nd String (B)',
+    'E4': '1st String (e)'
+  };
+
   return (
     <div className={`gm-root ${flash ? 'gm-flash' : ''}`}>
 
@@ -142,10 +187,16 @@ export function GuitarMode(): React.ReactElement {
           </div>
           {currentNote && (
             <div className="gm-note-sub">
+              {nearest && <span className="gm-string-info">{stringLabels[nearest.string] || 'Guitar Note'}</span>}
               <span className="gm-freq">{currentNote.frequency.toFixed(1)} Hz</span>
-              <span className={`gm-cents ${Math.abs(centsRounded) < 15 ? 'in-tune' : ''}`}>{centStr}</span>
+              <span className={`gm-cents ${Math.abs(centsRounded) < 10 ? 'in-tune' : ''}`}>{centStr}</span>
             </div>
           )}
+        </div>
+
+        {/* Visual Tuner */}
+        <div className="gm-tuner-container">
+           <TunerGauge cents={currentNote ? currentNote.cents : 0} active={!!currentNote} />
         </div>
 
         {/* Grade / feedback */}

@@ -130,6 +130,105 @@
   color: var(--success-color);
 }
 
+/* ── Tuner Gauge ──────────────────────────────── */
+.gm-tuner-container {
+  width: 100%;
+  max-width: 400px;
+  padding: 1rem 0;
+  pointer-events: none;
+}
+
+.gm-tuner-wrap {
+  opacity: 0.2;
+  transition: opacity 0.3s ease;
+}
+
+.gm-tuner-wrap.active {
+  opacity: 1;
+}
+
+.gm-tuner-scale {
+  position: relative;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 2.5rem 1rem 1.5rem 1rem;
+}
+
+.gm-tuner-marks {
+  display: flex;
+  justify-content: space-between;
+  position: absolute;
+  top: 0.75rem;
+  left: 1rem;
+  right: 1rem;
+}
+
+.gm-tuner-mark {
+  font-size: 0.65rem;
+  color: #64748b;
+  font-weight: 700;
+  text-align: center;
+}
+
+.gm-tuner-mark.center {
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+
+.gm-tuner-track {
+  position: relative;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.gm-tuner-center-line {
+  position: absolute;
+  left: 50%;
+  top: -6px;
+  bottom: -6px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(-50%);
+}
+
+.gm-tuner-needle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  transition: left 0.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  z-index: 2;
+}
+
+.gm-tuner-needle.perfect {
+  background: #22d3ee;
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.8);
+}
+
+.gm-tuner-needle.close {
+  background: #4ade80;
+}
+
+.gm-tuner-needle.off {
+  background: #f87171;
+}
+
+.gm-string-info {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  padding: 0.25rem 0.625rem;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+}
+
 /* ── Grade block (mirrors .recent-error) ──────── */
 .gm-grade-block {
   text-align: center;

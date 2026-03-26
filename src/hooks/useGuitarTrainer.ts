@@ -19,6 +19,13 @@ const HIT_DEBOUNCE_MS = 120;
 /** Minimum ms that the signal must stay above threshold before counting as note-on */
 const NOTE_ON_MIN_MS = 15;
 
+/**
+ * How many consecutive frames the same note must appear before we commit it
+ * as the "current note" shown to the user.  This eliminates single-frame
+ * flickering without introducing noticeable latency at 60 fps (3 frames ≈ 50 ms).
+ */
+const NOTE_STABILITY_FRAMES = 3;
+
 export function useGuitarTrainer() {
     // Share the same localStorage keys as the main trainer so settings are unified
     const [bpm, setBpm] = useLocalStorage('bpm_trainer_bpm', 120);
@@ -49,11 +56,18 @@ export function useGuitarTrainer() {
     // When the signal first went above threshold (for min-duration gating)
     const noteOnStartRef = useRef<number | null>(null);
 
+    // Note stability buffer — holds the last N detected note strings; we only
+    // update the displayed note when the same note appears N times in a row.
+    const stabilityBufRef = useRef<string[]>([]);
+
     const bpmRef = useRef<number>(bpm);
     bpmRef.current = bpm;
 
     const perfectWindowRef = useRef<number>(perfectWindow);
     perfectWindowRef.current = perfectWindow;
+
+    // Keep a ref to the latest detected note for use inside onset callbacks
+    const detectedNoteRef = useRef<DetectedNote | null>(null);
 
     const stopMicrophone = useCallback(() => {
         if (animationFrameRef.current) {
@@ -75,6 +89,8 @@ export function useGuitarTrainer() {
         inNoteRef.current = false;
         noteOnStartRef.current = null;
         lastHitTimeRef.current = null;
+        stabilityBufRef.current = [];
+        detectedNoteRef.current = null;
     }, []);
 
     const processFrame = useCallback(() => {
@@ -93,13 +109,33 @@ export function useGuitarTrainer() {
         const isSound = rms > HIT_RMS_THRESHOLD;
         const nowPerf = performance.now();
 
-        // Detect pitch (always, so we can show current note in real-time)
+        // ── Pitch detection (MPM) ─────────────────────────────────────────────
         const sampleRate = audioCtx.sampleRate;
-        const detected = detectPitch(buffer, sampleRate);
-        if (detected && isGuitarFrequency(detected.frequency)) {
-            setCurrentNote(detected);
-        } else if (!isSound) {
-            setCurrentNote(null);
+        const detected = isSound ? detectPitch(buffer, sampleRate) : null;
+
+        // Store the raw detection for onset callbacks
+        detectedNoteRef.current = detected && isGuitarFrequency(detected.frequency) ? detected : null;
+
+        // ── Stability filter before updating state ────────────────────────────
+        const noteKey = detectedNoteRef.current
+            ? `${detectedNoteRef.current.note}${detectedNoteRef.current.octave}`
+            : '';
+
+        stabilityBufRef.current.push(noteKey);
+        if (stabilityBufRef.current.length > NOTE_STABILITY_FRAMES) {
+            stabilityBufRef.current.shift();
+        }
+
+        // Only commit if all recent frames agree
+        if (stabilityBufRef.current.length === NOTE_STABILITY_FRAMES) {
+            const allSame = stabilityBufRef.current.every(k => k === stabilityBufRef.current[0]);
+            if (allSame) {
+                if (noteKey === '') {
+                    setCurrentNote(null);
+                } else if (detectedNoteRef.current) {
+                    setCurrentNote(detectedNoteRef.current);
+                }
+            }
         }
 
         // --- Onset detection (rising edge with minimum duration gating) ---
@@ -121,6 +157,7 @@ export function useGuitarTrainer() {
 
                 // Record this hit against the beat grid
                 const sessionStartWall = sessionStartWallRef.current;
+                const note = detectedNoteRef.current;
                 if (sessionStartWall !== null) {
                     const currentBpm = bpmRef.current;
                     const interval = 60000 / currentBpm;
@@ -130,17 +167,15 @@ export function useGuitarTrainer() {
                     const error = elapsed - expectedMs;
                     beatCountRef.current += 1;
 
-                    const noteStr = (detected && isGuitarFrequency(detected.frequency))
-                        ? `${detected.note}${detected.octave}`
-                        : null;
+                    const noteStr = note ? `${note.note}${note.octave}` : null;
 
                     const record: GuitarBeatRecord = {
                         index: beatCountRef.current,
                         time: elapsed,
                         error,
                         note: noteStr,
-                        frequency: detected?.frequency ?? null,
-                        cents: detected?.cents ?? null,
+                        frequency: note?.frequency ?? null,
+                        cents: note?.cents ?? null,
                     };
                     setLastBeat(record);
                     setBeats(prev => [...prev.slice(-49), record]);
@@ -170,10 +205,13 @@ export function useGuitarTrainer() {
             audioContextRef.current = audioContext;
 
             const analyser = audioContext.createAnalyser();
-            // Larger FFT gives better frequency resolution for low strings
+            // 8192 samples → ~5.4 Hz frequency resolution at 44.1 kHz,
+            // enough to distinguish E2 (82 Hz) from F2 (87 Hz).
+            // For MPM this also means the lag buffer is long enough to capture
+            // the full period of E2 (≈ 536 samples at 44.1 kHz).
             analyser.fftSize = 8192;
-            // No smoothing — pitch detection works on raw samples;
-            // smoothing is for spectrum visualisation and hurts onset detection
+            // No smoothing — MPM operates on raw time-domain samples; smoothing
+            // only helps spectrum visualisation and would distort the waveform.
             analyser.smoothingTimeConstant = 0.0;
             const source = audioContext.createMediaStreamSource(stream);
             source.connect(analyser);
@@ -185,6 +223,8 @@ export function useGuitarTrainer() {
             inNoteRef.current = false;
             noteOnStartRef.current = null;
             lastHitTimeRef.current = null;
+            stabilityBufRef.current = [];
+            detectedNoteRef.current = null;
 
             setBeats([]);
             setLastBeat(null);
@@ -204,6 +244,8 @@ export function useGuitarTrainer() {
         inNoteRef.current = false;
         noteOnStartRef.current = null;
         lastHitTimeRef.current = null;
+        stabilityBufRef.current = [];
+        detectedNoteRef.current = null;
         setBeats([]);
         setLastBeat(null);
         setCurrentNote(null);
