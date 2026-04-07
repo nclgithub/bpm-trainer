@@ -158,7 +158,7 @@ function App() {
       if (mode === 'absolute' && !activeSession && audioCtx) {
         // Schedule next beat relative to now, subtracting offset so audio plays early to compensate for user lag.
         nextNoteTimeRef.current = audioCtx.currentTime + (60.0 / (parseInt(bpmInput, 10) || 120)) - (offset / 1000.0);
-        currentBeatInBarRef.current = 1; // First tap is beat 0, next scheduling is beat 1
+        currentBeatInBarRef.current = 0; // First tap is beat 0; next scheduled beat is also beat 0 of the next bar cycle
       }
       tap(e.timeStamp);
     }

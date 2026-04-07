@@ -77,9 +77,7 @@ export function useBpmTrainer(onAccurateTap?: (error: number) => void) {
 
             setTaps(prev => [...prev.slice(-49), { index: closestBeat, time: now, expectedTime, error }]);
             setLastError(error);
-            if (Math.abs(error) <= perfectWindow || onAccurateTap) {
-                if (onAccurateTap) onAccurateTap(error);
-            }
+            if (onAccurateTap) onAccurateTap(error);
             resetAutoStop(bpm);
         }
 
